@@ -1,16 +1,18 @@
 # 🔮 moodring
 
-A personal influence tracker to map and reflect on what shapes your thinking, decisions, and behavior over time.
+A personal influence tracker to map and reflect on the architecture of your own mind.
 
-## ✨ Core Idea
+## The "Why" Behind moodring 🤔
 
-This application is designed to be a "memory mirror." It helps you track the books, articles, conversations, and videos that influence you, and then visualize the connections between them. The goal is to gain a deeper understanding of your own intellectual and emotional journey by seeing how one idea leads to another.
+We are constantly shaped by the information we consume—the books we read, the videos we watch, the conversations we have. These influences quietly build our beliefs, habits, and worldview. Yet, this entire process is almost completely invisible and untracked.
+
+**moodring is built to solve this.**
+
+It’s a tool designed for **intellectual self-awareness**. It makes the invisible process of influence visible, allowing you to see the exact threads connecting an idea to an action, a piece of content to a new belief. By mapping your own intellectual journey, you can gain a deeper understanding of why you think the way you do.
 
 ---
 
 ## ✅ Features Built (MVP)
-
-We have successfully built a powerful Minimum Viable Product with the following features:
 
 -   **Add Influence Entries:** A simple, frictionless way to add a new influence (a thought, a link, a quote) as a text entry.
 -   **Link Influences:** The ability to create connections between any two entries, forming a "cause and effect" relationship.
@@ -32,8 +34,6 @@ We have successfully built a powerful Minimum Viable Product with the following 
 
 ## 🚀 How to Run Locally
 
-To set up and run this project on your own machine, follow these steps:
-
 1.  **Clone the Repository:**
     ```bash
     git clone [https://github.com/your-username/moodring.git](https://github.com/your-username/moodring.git)
@@ -45,14 +45,13 @@ To set up and run this project on your own machine, follow these steps:
     npm install
     ```
 
-3.  **Set Up Supabase:**
-    -   Create a new project on [Supabase](https://supabase.com/).
-    -   In the SQL Editor, create the `influences` and `influence_links` tables using the SQL commands from our setup steps.
-    -   Create the Row Level Security (RLS) policies for both tables to allow public access.
+3.  **Set Up Supabase & Gemini:**
+    -   Create projects on [Supabase](https://supabase.com/) and [Google AI Studio](https://ai.google.dev/).
+    -   Set up the necessary database tables and security policies in Supabase.
 
 4.  **Create Environment File:**
     -   In the root of the project, create a file named `.env.local`.
-    -   Add your Supabase and Gemini API keys to this file:
+    -   Add your API keys to this file:
         ```
         NEXT_PUBLIC_SUPABASE_URL=YOUR_SUPABASE_URL
         NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
@@ -63,4 +62,4 @@ To set up and run this project on your own machine, follow these steps:
     ```bash
     npm run dev
     ```
-    Open [http://localhost:3000](http://localhost:3000) in your browser to see the result.
+    Open [http://localhost:3000](http://localhost:3000) in your browser.
