@@ -2,17 +2,12 @@
 
 import InfluenceForm from './components/InfluenceForm';
 import InfluenceList from './components/InfluenceList';
-import InfluenceGraph from './components/InfluenceGraph';
 import { useState } from 'react';
 import { generateReflectionAction } from './actions';
-
-// We'll create this component in the next step
-// import InfluenceGraph from './components/InfluenceGraph'; 
 
 export default function Home() {
   const [summary, setSummary] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'graph'>('list'); // 1. New state for the view mode
 
   const handleGenerateClick = async () => {
     setIsGenerating(true);
@@ -33,7 +28,6 @@ export default function Home() {
       </h1>
 
       <div className="w-full max-w-lg mb-12 p-4 border border-neutral-800 rounded-lg text-center">
-        {/* AI summary generator section remains the same */}
         <button
           onClick={handleGenerateClick}
           disabled={isGenerating}
@@ -49,27 +43,7 @@ export default function Home() {
       </div>
 
       <InfluenceForm />
-
-      {/* 2. Add the toggle buttons */}
-      <div className="w-full max-w-lg mt-8 mb-4 flex justify-center border-b border-neutral-800">
-        <button
-          onClick={() => setViewMode('list')}
-          className={`px-4 py-2 font-medium text-sm ${viewMode === 'list' ? 'border-b-2 border-blue-500 text-white' : 'text-neutral-400'}`}
-        >
-          Timeline
-        </button>
-        <button
-          onClick={() => setViewMode('graph')}
-          className={`px-4 py-2 font-medium text-sm ${viewMode === 'graph' ? 'border-b-2 border-blue-500 text-white' : 'text-neutral-400'}`}
-        >
-          Graph
-        </button>
-      </div>
-
-      {/* 3. Conditionally render the component */}
-      {viewMode === 'list' && <InfluenceList />}
-      {viewMode === 'graph' && <InfluenceGraph />}
-
+      <InfluenceList />
     </main>
   );
 }

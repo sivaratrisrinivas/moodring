@@ -12,12 +12,11 @@ It’s a tool designed for **intellectual self-awareness**. It makes the invisib
 
 ---
 
-## ✅ Features Built (MVP)
+## ✅ Features Built
 
 -   **Add Influence Entries:** A simple, frictionless way to add a new influence (a thought, a link, a quote) as a text entry.
 -   **Link Influences:** The ability to create connections between any two entries, forming a "cause and effect" relationship.
 -   **Chronological Timeline:** A clean, ordered list of all your entries, allowing you to see your journey over time.
--   **3D Influence Graph:** An interactive, 3D visualization of your influence network. You can switch to this view to see your ideas as a constellation of nodes and links that you can rotate, pan, and zoom.
 -   **On-Demand AI Reflection:** A button that securely sends your influences from the last 7 days to the Google Gemini AI to generate a short, insightful summary of your week's themes and patterns.
 
 ---
@@ -27,7 +26,6 @@ It’s a tool designed for **intellectual self-awareness**. It makes the invisib
 -   **Framework:** [Next.js](https://nextjs.org/) (with React & TypeScript)
 -   **Backend & Database:** [Supabase](https://supabase.com/)
 -   **AI Summaries:** [Google Gemini API](https://ai.google.dev/)
--   **3D Visualization:** [react-force-graph-3d](https://github.com/vazco/react-force-graph)
 -   **Styling:** [Tailwind CSS](https://tailwindcss.com/)
 
 ---
