@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -9,6 +9,34 @@ interface ReflectionOrbProps {
 }
 
 type Mood = 'neutral' | 'warm' | 'cool';
+
+interface SpeechRecognition extends EventTarget {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    maxAlternatives: number;
+    onstart: (() => void) | null;
+    onresult: ((event: SpeechRecognitionEvent) => void) | null;
+    onend: (() => void) | null;
+    onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+    onaudiostart: (() => void) | null;
+    onaudioend: (() => void) | null;
+    onsoundstart: (() => void) | null;
+    onsoundend: (() => void) | null;
+    onspeechstart: (() => void) | null;
+    onspeechend: (() => void) | null;
+    onnomatch: (() => void) | null;
+    start: () => void;
+    stop: () => void;
+    abort: () => void;
+}
+
+declare global {
+    interface Window {
+        webkitSpeechRecognition: { new(): SpeechRecognition };
+        SpeechRecognition: { new(): SpeechRecognition };
+    }
+}
 
 export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) {
     const [isProcessing, setIsProcessing] = useState(false);
@@ -25,24 +53,129 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
     const recognitionRef = useRef<SpeechRecognition | null>(null);
     const transcriptRef = useRef<string>('');
     const isManualStopRef = useRef<boolean>(false);
-    // Note: No timeoutRef needed, since all timeouts are removed
 
     // Type guard for browser SpeechRecognition
-    const getSpeechRecognition = () => {
+    const getSpeechRecognition = useCallback(() => {
         if (typeof window !== 'undefined') {
-            return (
-                (window as any).webkitSpeechRecognition ||
-                (window as any).SpeechRecognition ||
-                null
-            );
+            return window.webkitSpeechRecognition || window.SpeechRecognition || null;
         }
         return null;
-    };
+    }, []);
 
     // Ensure client-side rendering to avoid hydration mismatch
     useEffect(() => {
         setIsClient(true);
     }, []);
+
+    const handleSaveInfluence = useCallback(
+        async (content: string) => {
+            if (!content.trim()) return;
+
+            setIsProcessing(true);
+            try {
+                const { error } = await supabase
+                    .from('influences')
+                    .insert([{ content: content.trim() }])
+                    .select();
+
+                if (error) throw error;
+
+                // Reset states
+                setTranscript('');
+                setTextInput('');
+                setShowTextInput(false);
+                setShowTranscript(false);
+
+                // Notify parent component to refresh the list
+                if (onInfluenceAdded) {
+                    onInfluenceAdded();
+                }
+            } catch (error) {
+                console.error('Error saving influence:', error);
+            } finally {
+                setIsProcessing(false);
+            }
+        },
+        [onInfluenceAdded]
+    );
+
+    // Start listening using the persistent recognitionRef
+    const startListening = useCallback(() => {
+        console.log('🚀 Attempting to start speech recognition...');
+        console.log('📊 Current state:', {
+            isListening,
+            hasRecognition: !!recognitionRef.current,
+            speechSupported,
+        });
+
+        if (!isListening && recognitionRef.current && speechSupported) {
+            try {
+                console.log('🔄 Resetting state and starting...');
+
+                setTranscript('');
+                transcriptRef.current = '';
+                isManualStopRef.current = false;
+                setShowTranscript(true);
+
+                console.log('🎯 Starting recognition...');
+                recognitionRef.current.start();
+            } catch (err) {
+                console.error('💥 Error starting speech recognition:', err);
+                setSpeechSupported(false);
+                setShowTextInput(true);
+            }
+        } else {
+            console.log('⚠️ Cannot start - conditions not met:', {
+                isListening,
+                hasRecognition: !!recognitionRef.current,
+                speechSupported,
+            });
+        }
+    }, [isListening, speechSupported]);
+
+    // Stop listening using the persistent recognitionRef
+    const stopListening = useCallback(() => {
+        if (isListening && recognitionRef.current) {
+            try {
+                isManualStopRef.current = true;
+                recognitionRef.current.stop();
+            } catch (err) {
+                console.error('Stop error:', err);
+            }
+        }
+    }, [isListening]);
+
+    // Handle orb click/tap
+    const handleOrbInteraction = useCallback(
+        (e: React.PointerEvent) => {
+            e.preventDefault();
+
+            if (!isClient || !speechSupported) {
+                setShowTextInput(true);
+                return;
+            }
+
+            if (isListening) {
+                console.log('🛑 User clicked while listening - stopping...');
+                stopListening();
+            } else {
+                console.log('▶️ User clicked to start listening');
+                startListening();
+            }
+        },
+        [isClient, isListening, speechSupported, startListening, stopListening]
+    );
+
+    // Handle text form submission
+    const handleTextSubmit = useCallback(
+        (e: React.FormEvent) => {
+            e.preventDefault();
+            if (textInput.trim()) {
+                handleSaveInfluence(textInput);
+            }
+        },
+        [textInput, handleSaveInfluence]
+    );
 
     // Initialize Speech Recognition once on client
     useEffect(() => {
@@ -57,7 +190,7 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
             setSpeechSupported(true);
 
             const recognition = new SpeechRecognition();
-            recognition.continuous = true;             // Now true for unlimited listening (until user stops)
+            recognition.continuous = true;
             recognition.interimResults = true;
             recognition.lang = 'en-US';
             recognition.maxAlternatives = 1;
@@ -66,16 +199,17 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
                 continuous: recognition.continuous,
                 interimResults: recognition.interimResults,
                 lang: recognition.lang,
-                maxAlternatives: recognition.maxAlternatives
+                maxAlternatives: recognition.maxAlternatives,
             });
 
             recognition.onstart = () => {
                 setIsListening(true);
                 console.log('🎤 Speech recognition started at:', new Date().toISOString());
 
-                navigator.mediaDevices?.getUserMedia({ audio: true })
+                navigator.mediaDevices
+                    ?.getUserMedia({ audio: true })
                     .then(() => console.log('✅ Microphone access confirmed'))
-                    .catch(err => console.log('❌ Microphone access issue:', err));
+                    .catch((err) => console.log('❌ Microphone access issue:', err));
             };
 
             recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -127,7 +261,7 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
                 }
             };
 
-            // Set up audio/speech events for debugging
+            // Audio/speech event debug handlers
             recognition.onaudiostart = () => console.log('🔊 Audio capture started');
             recognition.onaudioend = () => console.log('🔇 Audio capture ended');
             recognition.onsoundstart = () => console.log('👂 Sound detected');
@@ -144,113 +278,10 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
             console.log('❌ Speech recognition not supported in this browser');
         }
 
-        // Cleanup on unmount
         return () => {
             recognitionRef.current?.abort();
         };
-    }, [isClient]);
-
-    // Handle saving influence to database
-    const handleSaveInfluence = async (content: string) => {
-        if (!content.trim()) return;
-
-        setIsProcessing(true);
-        try {
-            const { error } = await supabase
-                .from('influences')
-                .insert([{ content: content.trim() }])
-                .select();
-
-            if (error) throw error;
-
-            // Reset states
-            setTranscript('');
-            setTextInput('');
-            setShowTextInput(false);
-            setShowTranscript(false);
-
-            // Notify parent component to refresh the list
-            if (onInfluenceAdded) {
-                onInfluenceAdded();
-            }
-        } catch (error) {
-            console.error('Error saving influence:', error);
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    // Start listening using the persistent recognitionRef
-    const startListening = () => {
-        console.log('🚀 Attempting to start speech recognition...');
-        console.log('📊 Current state:', {
-            isListening,
-            hasRecognition: !!recognitionRef.current,
-            speechSupported
-        });
-
-        if (!isListening && recognitionRef.current && speechSupported) {
-            try {
-                console.log('🔄 Resetting state and starting...');
-
-                setTranscript('');
-                transcriptRef.current = '';
-                isManualStopRef.current = false;
-                setShowTranscript(true);
-
-                console.log('🎯 Starting recognition...');
-                recognitionRef.current.start();
-            } catch (err) {
-                console.error('💥 Error starting speech recognition:', err);
-                setSpeechSupported(false);
-                setShowTextInput(true);
-            }
-        } else {
-            console.log('⚠️ Cannot start - conditions not met:', {
-                isListening,
-                hasRecognition: !!recognitionRef.current,
-                speechSupported
-            });
-        }
-    };
-
-    // Stop listening using the persistent recognitionRef
-    const stopListening = () => {
-        if (isListening && recognitionRef.current) {
-            try {
-                isManualStopRef.current = true;
-                recognitionRef.current.stop();
-            } catch (err) {
-                console.error('Stop error:', err);
-            }
-        }
-    };
-
-    // Handle orb click/tap
-    const handleOrbInteraction = (e: React.PointerEvent) => {
-        e.preventDefault();
-
-        if (!isClient || !speechSupported) {
-            setShowTextInput(true);
-            return;
-        }
-
-        if (isListening) {
-            console.log('🛑 User clicked while listening - stopping...');
-            stopListening();
-        } else {
-            console.log('▶️ User clicked to start listening');
-            startListening();
-        }
-    };
-
-    // Handle text form submission
-    const handleTextSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (textInput.trim()) {
-            handleSaveInfluence(textInput);
-        }
-    };
+    }, [isClient, handleSaveInfluence, getSpeechRecognition]);
 
     // Dynamic mood based on state
     useEffect(() => {
@@ -264,21 +295,27 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
     }, [isListening, isProcessing]);
 
     // Tailwind color and glow generators
-    const getMoodGradient = (mood: Mood) => {
+    const getMoodGradient = useCallback((mood: Mood) => {
         switch (mood) {
-            case 'warm': return 'from-orange-400 to-red-500';
-            case 'cool': return 'from-blue-400 to-purple-500';
-            default: return 'from-neutral-300 to-neutral-500';
+            case 'warm':
+                return 'from-orange-400 to-red-500';
+            case 'cool':
+                return 'from-blue-400 to-purple-500';
+            default:
+                return 'from-neutral-300 to-neutral-500';
         }
-    };
+    }, []);
 
-    const getGlowColor = (mood: Mood) => {
+    const getGlowColor = useCallback((mood: Mood) => {
         switch (mood) {
-            case 'warm': return 'shadow-2xl shadow-orange-500/20';
-            case 'cool': return 'shadow-2xl shadow-blue-500/20';
-            default: return 'shadow-2xl shadow-neutral-500/10';
+            case 'warm':
+                return 'shadow-2xl shadow-orange-500/20';
+            case 'cool':
+                return 'shadow-2xl shadow-blue-500/20';
+            default:
+                return 'shadow-2xl shadow-neutral-500/10';
         }
-    };
+    }, []);
 
     return (
         <div className="flex flex-col items-center space-y-8">
@@ -288,12 +325,12 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
                     className={`w-32 h-32 rounded-full bg-gradient-to-br ${getMoodGradient(currentMood)} ${getGlowColor(currentMood)} cursor-pointer select-none flex items-center justify-center`}
                     animate={{
                         scale: isListening ? [1, 1.1, 1] : isProcessing ? [1, 0.95, 1] : 1,
-                        opacity: isListening || isProcessing ? 0.9 : 0.7
+                        opacity: isListening || isProcessing ? 0.9 : 0.7,
                     }}
                     transition={{
                         duration: isListening ? 2 : 1,
                         repeat: isListening ? Infinity : 0,
-                        ease: "easeInOut"
+                        ease: 'easeInOut',
                     }}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -304,23 +341,23 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
                         className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center"
                         animate={{
                             scale: isListening ? [1, 1.2, 1] : 1,
-                            opacity: isListening ? [0.3, 0.7, 0.3] : 0.4
+                            opacity: isListening ? [0.3, 0.7, 0.3] : 0.4,
                         }}
                         transition={{
                             duration: 1.5,
                             repeat: isListening ? Infinity : 0,
-                            ease: "easeInOut"
+                            ease: 'easeInOut',
                         }}
                     >
                         <motion.div
                             className="w-8 h-8 rounded-full bg-white/30"
                             animate={{
-                                scale: isListening ? [1, 0.8, 1] : 1
+                                scale: isListening ? [1, 0.8, 1] : 1,
                             }}
                             transition={{
                                 duration: 1,
                                 repeat: isListening ? Infinity : 0,
-                                ease: "easeInOut"
+                                ease: 'easeInOut',
                             }}
                         />
                     </motion.div>
@@ -337,7 +374,7 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
                             transition={{
                                 duration: 2,
                                 repeat: Infinity,
-                                ease: "easeOut"
+                                ease: 'easeOut',
                             }}
                         />
                     )}
@@ -346,24 +383,29 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
 
             {/* Status Text */}
             <motion.p
-                className={`text-sm font-light tracking-wide text-center ${isListening ? 'text-orange-300 font-medium' : 'text-neutral-400'}`}
+                className={`text-sm font-light tracking-wide text-center ${isListening ? 'text-orange-300 font-medium' : 'text-neutral-400'
+                    }`}
                 animate={{
                     opacity: isListening || isProcessing ? 1 : 0.6,
-                    scale: isListening ? [1, 1.05, 1] : 1
+                    scale: isListening ? [1, 1.05, 1] : 1,
                 }}
                 transition={{
                     scale: {
                         duration: 1.5,
                         repeat: isListening ? Infinity : 0,
-                        ease: "easeInOut"
-                    }
+                        ease: 'easeInOut',
+                    },
                 }}
             >
-                {!isClient ? 'Tap to add your influence' :
-                    !speechSupported ? 'Tap to type your influence' :
-                        isListening ? '🎤 Listening... Tap to stop' :
-                            isProcessing ? 'Saving...' :
-                                'Tap to speak your influence'}
+                {!isClient
+                    ? 'Tap to add your influence'
+                    : !speechSupported
+                        ? 'Tap to type your influence'
+                        : isListening
+                            ? '🎤 Listening... Tap to stop'
+                            : isProcessing
+                                ? 'Saving...'
+                                : 'Tap to speak your influence'}
             </motion.p>
 
             {/* Manual fallback button for text input */}
@@ -405,7 +447,7 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
                         exit={{ opacity: 0, y: -20 }}
                         transition={{ duration: 0.3 }}
                     >
-                        <p className="text-neutral-300 text-sm italic">"{transcript}"</p>
+                        <p className="text-neutral-300 text-sm italic">&quot;{transcript}&quot;</p>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -457,17 +499,9 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
                 <div className="text-xs text-neutral-600 text-center">
                     <p>Speech supported: {speechSupported ? 'Yes' : 'No'}</p>
                     <p>Listening: {isListening ? 'Yes' : 'No'}</p>
-                    {transcript && <p>Transcript: "{transcript}"</p>}
+                    {transcript && <p>Transcript: &quot;{transcript}&quot;</p>}
                 </div>
             )}
         </div>
     );
-}
-
-// Type declarations for Speech Recognition
-declare global {
-    interface Window {
-        webkitSpeechRecognition: any;
-        SpeechRecognition: any;
-    }
 }
