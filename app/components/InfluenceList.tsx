@@ -145,7 +145,7 @@ const InfluenceList = forwardRef<InfluenceListRef>((props, ref) => {
                                         disabled={isLinking}
                                         className="w-full text-left p-3 bg-neutral-800/50 hover:bg-neutral-700/50 rounded-xl transition-all duration-300 backdrop-blur-sm disabled:opacity-50 text-neutral-300 text-sm leading-relaxed"
                                     >
-                                        {targetInfluence.content}
+                                        &quot;{targetInfluence.content}&quot;
                                     </button>
                                 ))}
                         </div>

@@ -61,11 +61,11 @@ export default function InfluenceCard({
                     <div className="pt-3 border-t border-neutral-800 space-y-2">
                         {outgoingLinks.map((link) => {
                             const target = allInfluences.find((inf) => inf.id === link.target_id);
-                            return (<div key={link.id} className="text-xs"> <span className="text-neutral-500">→ Leads to: </span> <span className="text-neutral-300 italic">"{target?.content}"</span> </div>);
+                            return (<div key={link.id} className="text-xs"> <span className="text-neutral-500">→ Leads to: </span> <span className="text-neutral-300 italic">&quot;{target?.content}&quot;</span> </div>);
                         })}
                         {incomingLinks.map((link) => {
                             const source = allInfluences.find((inf) => inf.id === link.source_id);
-                            return (<div key={link.id} className="text-xs"> <span className="text-neutral-500">← From: </span> <span className="text-neutral-300 italic">"{source?.content}"</span> </div>);
+                            return (<div key={link.id} className="text-xs"> <span className="text-neutral-500">← From: </span> <span className="text-neutral-300 italic">&quot;{source?.content}&quot;</span> </div>);
                         })}
                     </div>
                 )}

@@ -156,7 +156,7 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
 
         setIsProcessing(true);
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('influences')
                 .insert([{ content: content.trim() }])
                 .select();
@@ -179,6 +179,16 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
             setIsProcessing(false);
         }
     };
+
+    // Auto-save transcript when listening stops
+    useEffect(() => {
+        if (!isListening && transcript.trim() && !isProcessing) {
+            const timer = setTimeout(() => {
+                handleSaveInfluence(transcript);
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [isListening, transcript, isProcessing, handleSaveInfluence]);
 
     // Start listening using the persistent recognitionRef
     const startListening = () => {
@@ -405,7 +415,7 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
                         exit={{ opacity: 0, y: -20 }}
                         transition={{ duration: 0.3 }}
                     >
-                        <p className="text-neutral-300 text-sm italic">"{transcript}"</p>
+                        <p className="text-neutral-300 text-sm italic">&quot;{transcript}&quot;</p>
                     </motion.div>
                 )}
             </AnimatePresence>
