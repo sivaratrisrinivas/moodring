@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -69,7 +69,7 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
                 maxAlternatives: recognition.maxAlternatives
             });
 
-            recognition.onstart = (event: Event) => {
+            recognition.onstart = () => {
                 setIsListening(true);
                 console.log('🎤 Speech recognition started at:', new Date().toISOString());
 
@@ -128,27 +128,13 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
             };
 
             // Set up audio/speech events for debugging
-            recognition.onaudiostart = (event: Event) => {
-                console.log('🔊 Audio capture started');
-            };
-            recognition.onaudioend = (event: Event) => {
-                console.log('🔇 Audio capture ended');
-            };
-            recognition.onsoundstart = (event: Event) => {
-                console.log('👂 Sound detected');
-            };
-            recognition.onsoundend = (event: Event) => {
-                console.log('🤫 Sound ended');
-            };
-            recognition.onspeechstart = (event: Event) => {
-                console.log('🗣️ Speech started');
-            };
-            recognition.onspeechend = (event: Event) => {
-                console.log('😶 Speech ended');
-            };
-            recognition.onnomatch = (event: SpeechRecognitionEvent) => {
-                console.log('❓ No speech match found');
-            };
+            recognition.onaudiostart = () => console.log('🔊 Audio capture started');
+            recognition.onaudioend = () => console.log('🔇 Audio capture ended');
+            recognition.onsoundstart = () => console.log('👂 Sound detected');
+            recognition.onsoundend = () => console.log('🤫 Sound ended');
+            recognition.onspeechstart = () => console.log('🗣️ Speech started');
+            recognition.onspeechend = () => console.log('😶 Speech ended');
+            recognition.onnomatch = () => console.log('❓ No speech match found');
 
             // Store the recognition instance in ref
             recognitionRef.current = recognition;
@@ -165,14 +151,15 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
     }, [isClient]);
 
     // Handle saving influence to database
-    const handleSaveInfluence = useCallback(async (content: string) => {
+    const handleSaveInfluence = async (content: string) => {
         if (!content.trim()) return;
 
         setIsProcessing(true);
         try {
             const { error } = await supabase
                 .from('influences')
-                .insert([{ content: content.trim() }]);
+                .insert([{ content: content.trim() }])
+                .select();
 
             if (error) throw error;
 
@@ -191,17 +178,7 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
         } finally {
             setIsProcessing(false);
         }
-    }, [onInfluenceAdded]);
-
-    // Auto-save transcript when listening stops
-    useEffect(() => {
-        if (!isListening && transcript.trim() && !isProcessing) {
-            const timer = setTimeout(() => {
-                handleSaveInfluence(transcript);
-            }, 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [isListening, transcript, isProcessing, handleSaveInfluence]);
+    };
 
     // Start listening using the persistent recognitionRef
     const startListening = () => {
@@ -428,7 +405,7 @@ export default function ReflectionOrb({ onInfluenceAdded }: ReflectionOrbProps) 
                         exit={{ opacity: 0, y: -20 }}
                         transition={{ duration: 0.3 }}
                     >
-                        <p className="text-neutral-300 text-sm italic">&quot;{transcript}&quot;</p>
+                        <p className="text-neutral-300 text-sm italic">"{transcript}"</p>
                     </motion.div>
                 )}
             </AnimatePresence>
