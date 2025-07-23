@@ -18,6 +18,9 @@ It’s a tool designed for **intellectual self-awareness**. It makes the invisib
 -   **Link Influences:** The ability to create connections between any two entries, forming a "cause and effect" relationship.
 -   **Chronological Timeline:** A clean, ordered list of all your entries, allowing you to see your journey over time.
 -   **On-Demand AI Reflection:** A button that securely sends your influences from the last 7 days to the Google Gemini AI to generate a short, insightful summary of your week's themes and patterns.
+-   **Delete Influence Entries:** You can now delete any influence entry directly from the timeline if you added it by mistake.
+-   **Robust Voice Input:** Speech recognition is more reliable—recoverable errors (like "no-speech") no longer permanently disable voice input, and the UI guides you to speak at the right time.
+-   **UI/UX Polish:** Timeline dots and action buttons now use a consistent, modern dark color palette for a seamless look.
 
 ---
 

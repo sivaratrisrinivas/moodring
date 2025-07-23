@@ -1,9 +1,13 @@
+// app/components/InfluenceList.tsx
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { analyzeConnectionsAction } from '../actions';
+import InfluenceCard from './InfluenceCard';
 
-// Define the shape of our data objects
+// Define types (can be moved to a shared file later)
 type Influence = {
     id: number;
     created_at: string;
@@ -15,14 +19,19 @@ type Link = {
     target_id: number;
 };
 
-export default function InfluenceList() {
+export interface InfluenceListRef {
+    refreshData: () => void;
+}
+
+const InfluenceList = forwardRef<InfluenceListRef>((props, ref) => {
     const [influences, setInfluences] = useState<Influence[]>([]);
-    const [links, setLinks] = useState<Link[]>([]); // 1. New state for our links
+    const [links, setLinks] = useState<Link[]>([]);
     const [loading, setLoading] = useState(true);
     const [linkingInfluence, setLinkingInfluence] = useState<Influence | null>(null);
     const [isLinking, setIsLinking] = useState(false);
+    const [analyses, setAnalyses] = useState<{ [key: number]: string }>({});
+    const [analyzingId, setAnalyzingId] = useState<number | null>(null);
 
-    // 2. We'll create a single function to fetch all data
     const fetchData = async () => {
         setLoading(true);
         const [influencesRes, linksRes] = await Promise.all([
@@ -53,11 +62,48 @@ export default function InfluenceList() {
         if (error) {
             alert('Failed to create link: ' + error.message);
         } else {
-            await fetchData(); // 3. Refetch data after creating a link to show it immediately
+            await fetchData();
         }
         setIsLinking(false);
         setLinkingInfluence(null);
     };
+
+    const handleAnalysisClick = async (influenceId: number) => {
+        setAnalyzingId(influenceId);
+        try {
+            const result = await analyzeConnectionsAction(influenceId);
+            if (result.error) {
+                setAnalyses(prev => ({
+                    ...prev,
+                    [influenceId]: result.error
+                }));
+            } else if (result.analysis) {
+                setAnalyses(prev => ({
+                    ...prev,
+                    [influenceId]: result.analysis
+                }));
+            }
+        } catch (error) {
+            console.error('Analysis error:', error);
+            setAnalyses(prev => ({
+                ...prev,
+                [influenceId]: "Failed to analyze connections. Please try again."
+            }));
+        } finally {
+            setAnalyzingId(null);
+        }
+    };
+
+    const handleDelete = async (id: number) => {
+        if (!window.confirm('Are you sure you want to delete this influence?')) return;
+        const { error } = await supabase.from('influences').delete().eq('id', id);
+        if (error) alert('Failed to delete: ' + error.message);
+        else fetchData(); // refresh the list
+    };
+
+    useImperativeHandle(ref, () => ({
+        refreshData: fetchData
+    }));
 
     if (loading) {
         return <p className="mt-4 text-neutral-400">Loading influences...</p>;
@@ -65,61 +111,31 @@ export default function InfluenceList() {
 
     return (
         <div className="w-full max-w-lg mt-12">
+
             <ol className="relative border-l border-neutral-700">
-                {influences.map((influence) => {
-                    // 4. Find the links for this specific influence
-                    const outgoingLinks = links.filter((link) => link.source_id === influence.id);
-                    const incomingLinks = links.filter((link) => link.target_id === influence.id);
-
-                    return (
-                        <li key={influence.id} className="mb-10 ml-6">
-                            <span className="absolute flex items-center justify-center w-3 h-3 bg-blue-500 rounded-full -left-1.5 ring-4 ring-blue-500/20"></span>
-                            <div className="p-4 bg-neutral-900 rounded-lg border border-neutral-800">
-                                <p className="text-neutral-200 whitespace-pre-wrap">{influence.content}</p>
-
-                                {/* 5. New section to display the links */}
-                                {(outgoingLinks.length > 0 || incomingLinks.length > 0) && (
-                                    <div className="mt-3 pt-3 border-t border-neutral-800 space-y-2">
-                                        {outgoingLinks.map((link) => {
-                                            const target = influences.find((inf) => inf.id === link.target_id);
-                                            return (
-                                                <div key={link.id} className="text-xs">
-                                                    <span className="text-neutral-500">→ Leads to: </span>
-                                                    <span className="text-neutral-300 italic">"{target?.content}"</span>
-                                                </div>
-                                            );
-                                        })}
-                                        {incomingLinks.map((link) => {
-                                            const source = influences.find((inf) => inf.id === link.source_id);
-                                            return (
-                                                <div key={link.id} className="text-xs">
-                                                    <span className="text-neutral-500">← From: </span>
-                                                    <span className="text-neutral-300 italic">"{source?.content}"</span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-
-                                <div className="flex justify-between items-center mt-4">
-                                    <p className="text-xs text-neutral-500">{new Date(influence.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
-                                    <button onClick={() => setLinkingInfluence(influence)} className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">
-                                        Link Influence
-                                    </button>
-                                </div>
-                            </div>
-                        </li>
-                    );
-                })}
+                {influences.map((influence) => (
+                    <InfluenceCard
+                        key={influence.id}
+                        influence={influence}
+                        links={links}
+                        allInfluences={influences}
+                        onAnalyze={handleAnalysisClick}
+                        onLink={setLinkingInfluence}
+                        onDelete={handleDelete}
+                        isAnalyzing={analyzingId === influence.id}
+                        analysisText={analyses[influence.id]}
+                    />
+                ))}
             </ol>
-            {/* ... The Modal JSX remains the same ... */}
+
+            {/* Linking Modal */}
             {linkingInfluence && (
-                <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4">
-                    <div className="bg-neutral-900 p-6 rounded-lg w-full max-w-md border border-neutral-700">
-                        <h3 className="text-lg font-bold mb-2">Link from:</h3>
-                        <p className="mb-4 p-2 bg-neutral-800 rounded-md text-sm">"{linkingInfluence.content}"</p>
-                        <h3 className="text-lg font-bold mb-4">Link to:</h3>
-                        <div className="max-h-60 overflow-y-auto">
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[9999] p-4">
+                    <div className="bg-neutral-900/90 backdrop-blur-sm p-6 rounded-2xl w-full max-w-md border border-neutral-800/50">
+                        <h3 className="text-lg font-light mb-2 text-neutral-200">Link from:</h3>
+                        <p className="mb-4 p-3 bg-neutral-800/50 rounded-xl text-sm text-neutral-300 leading-relaxed">"{linkingInfluence.content}"</p>
+                        <h3 className="text-lg font-light mb-4 text-neutral-200">Link to:</h3>
+                        <div className="max-h-60 overflow-y-auto space-y-2">
                             {influences
                                 .filter((target) => target.id !== linkingInfluence.id)
                                 .map((targetInfluence) => (
@@ -127,7 +143,7 @@ export default function InfluenceList() {
                                         key={targetInfluence.id}
                                         onClick={() => handleCreateLink(targetInfluence.id)}
                                         disabled={isLinking}
-                                        className="w-full text-left p-3 mb-2 bg-neutral-800 hover:bg-neutral-700 rounded-md transition-colors disabled:opacity-50"
+                                        className="w-full text-left p-3 bg-neutral-800/50 hover:bg-neutral-700/50 rounded-xl transition-all duration-300 backdrop-blur-sm disabled:opacity-50 text-neutral-300 text-sm leading-relaxed"
                                     >
                                         {targetInfluence.content}
                                     </button>
@@ -136,7 +152,7 @@ export default function InfluenceList() {
                         <button
                             onClick={() => setLinkingInfluence(null)}
                             disabled={isLinking}
-                            className="mt-4 w-full text-center text-sm text-neutral-400 hover:text-white"
+                            className="mt-6 w-full px-4 py-2 bg-neutral-800/50 hover:bg-neutral-700/50 text-neutral-300 text-sm font-light rounded-full border border-neutral-700/50 transition-all duration-300 backdrop-blur-sm"
                         >
                             Cancel
                         </button>
@@ -145,4 +161,8 @@ export default function InfluenceList() {
             )}
         </div>
     );
-}
+});
+
+InfluenceList.displayName = 'InfluenceList';
+
+export default InfluenceList;
